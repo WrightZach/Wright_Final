@@ -1,0 +1,387 @@
+---
+title: "A Shallow Dive into the Deep Pool of Amazon Review Data"
+author: "Zach Wright"
+date: "4/30/2018"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(httr)
+library(jsonlite)
+library(tidytext)
+library(dplyr)
+library(tidyverse)
+library(magrittr)
+library(curl)
+library(rvest)
+library(knitr)
+library(lubridate)
+
+```
+
+# Visualize the Dive
+
+## NY Times API and UCSD Amazon Data
+
+The Theory: A book listed on the NY Times Best Sellers list will have positive review sentiment
+
+- The New York Times Best Seller list is widely considered the preeminent list of best-selling books in the United States. 
+
+- Amazon.com is recognized as the largest hub of book sales and offers thousands of user reviews per publication
+
+The Plan:
+
+-Conduct sentiment analysis on the Amazon reviews of the books most-frequently featured on the NYT Best Seller's list
+
+# Don't dive if you can't see the bottom
+
+## Flaws in design
+
+Assumptions:
+
+- The UCSD Amazon data is a collection of workable review data from 1996 - 2014
+- I would access the NY Times Best Sellers History API and collect the data on these years
+
+
+Reality:
+
+- The UCSD Amazon data is contained in a 4GB JSON file, containing ~9 million reviews
+- NY Times API only provides recent Best Seller Data
+
+
+# Close your eyes and jump
+
+## Make it work
+
+Attempts: 
+
+- Scrape the NYT Best Seller wikipedia pages for 1996 - 2014
+- Open the 4GB JSON file in terminal, use grep() to find reviews based on the book's unique Amazon ID
+
+Result:
+
+- The JSON file only contains a few, if any, reviews of the books I'm interested in
+- The JSON data is very dirty; missing characters, titles, Amazon ID's
+
+Realization: This is not a viable approach for this analysis
+
+# Just Keep Swimming
+
+## Try Smarter, Not Harder
+
+Scrape the NYT Best Seller data:
+
+- Who are the most frequent Authors?
+  
+- What are the most frequent Titles?
+
+From there we can find which book reviews to analyze
+  
+##   NYT Graph Analysis
+```{r NYT Author Analysis, echo=FALSE, warning=FALSE}
+urls <-rbind("https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_1996",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_1997",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_1998",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_1999",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2000",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2001",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2002",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2003",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2004",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2005",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2006",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2007",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2008",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2009",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2010",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2011",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2012",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2013",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2014",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2015",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2016",
+         "https://en.wikipedia.org/wiki/The_New_York_Times_Fiction_Best_Sellers_of_2017")
+
+## Function to scrape the wiki NYT data for 96-2014
+
+wiki_nyt_scrape <- function(x){
+    x %>%
+      read_html() %>%
+      html_table(fill = TRUE) %>%
+      .[[1]]
+}
+##Scrapes all of those pages
+Wiki_Scraped_unnested <- apply(urls,1,wiki_nyt_scrape) 
+
+
+## Combines and unnests data
+Wiki_Scraped_Tables <- rbind(
+Wiki_Scraped_Table_1996 <- unnest(Wiki_Scraped_unnested[[1]]),
+Wiki_Scraped_Table_1997 <- unnest(Wiki_Scraped_unnested[[2]]),
+Wiki_Scraped_Table_1998 <- unnest(Wiki_Scraped_unnested[[3]]),
+Wiki_Scraped_Table_1999 <- unnest(Wiki_Scraped_unnested[[4]]),
+Wiki_Scraped_Table_2000 <- unnest(Wiki_Scraped_unnested[[5]]),
+Wiki_Scraped_Table_2001 <- unnest(Wiki_Scraped_unnested[[6]]),
+Wiki_Scraped_Table_2002 <- unnest(Wiki_Scraped_unnested[[7]]),
+Wiki_Scraped_Table_2003 <- unnest(Wiki_Scraped_unnested[[8]]),
+Wiki_Scraped_Table_2004 <- unnest(Wiki_Scraped_unnested[[9]]),
+Wiki_Scraped_Table_2005 <- unnest(Wiki_Scraped_unnested[[10]]),
+Wiki_Scraped_Table_2006 <- unnest(Wiki_Scraped_unnested[[11]]),
+Wiki_Scraped_Table_2007 <- unnest(Wiki_Scraped_unnested[[12]]),
+Wiki_Scraped_Table_2008 <- unnest(Wiki_Scraped_unnested[[13]]),
+Wiki_Scraped_Table_2009 <- unnest(Wiki_Scraped_unnested[[14]]),
+Wiki_Scraped_Table_2010 <- unnest(Wiki_Scraped_unnested[[15]]),
+Wiki_Scraped_Table_2012 <- unnest(Wiki_Scraped_unnested[[17]]),
+Wiki_Scraped_Table_2013 <- unnest(Wiki_Scraped_unnested[[18]]),
+Wiki_Scraped_Table_2014 <- unnest(Wiki_Scraped_unnested[[19]]),
+Wiki_Scraped_Table_2015 <- unnest(Wiki_Scraped_unnested[[20]]),
+Wiki_Scraped_Table_2016 <- unnest(Wiki_Scraped_unnested[[21]]),
+Wiki_Scraped_Table_2017 <- unnest(Wiki_Scraped_unnested[[22]])
+)           
+
+## Adds Year variable
+Wiki_Scraped_Table_1996$Year <- 1996
+Wiki_Scraped_Table_1997$Year <- 1997
+Wiki_Scraped_Table_1998$Year <- 1998
+Wiki_Scraped_Table_1999$Year <- 1999
+Wiki_Scraped_Table_2000$Year <- 2000
+Wiki_Scraped_Table_2001$Year <- 2001
+Wiki_Scraped_Table_2002$Year <- 2002
+Wiki_Scraped_Table_2003$Year <- 2003
+Wiki_Scraped_Table_2004$Year <- 2004
+Wiki_Scraped_Table_2005$Year <- 2005
+Wiki_Scraped_Table_2006$Year <- 2006
+Wiki_Scraped_Table_2007$Year <- 2007
+Wiki_Scraped_Table_2008$Year <- 2008
+Wiki_Scraped_Table_2009$Year <- 2009
+Wiki_Scraped_Table_2010$Year <- 2010
+Wiki_Scraped_Table_2012$Year <- 2012
+Wiki_Scraped_Table_2013$Year <- 2013
+Wiki_Scraped_Table_2014$Year <- 2014
+Wiki_Scraped_Table_2015$Year <- 2015
+Wiki_Scraped_Table_2016$Year <- 2016
+Wiki_Scraped_Table_2017$Year <- 2017
+
+## Combines by row chronologically
+Wiki_Scraped_Tables <- rbind(
+  Wiki_Scraped_Table_1996, 
+  Wiki_Scraped_Table_1997, 
+  Wiki_Scraped_Table_1998, 
+  Wiki_Scraped_Table_1999,
+  Wiki_Scraped_Table_2000,
+  Wiki_Scraped_Table_2001,
+  Wiki_Scraped_Table_2002,
+  Wiki_Scraped_Table_2003,
+  Wiki_Scraped_Table_2004,
+  Wiki_Scraped_Table_2005,
+  Wiki_Scraped_Table_2006,
+  Wiki_Scraped_Table_2007,
+  Wiki_Scraped_Table_2008,
+  Wiki_Scraped_Table_2009,
+  Wiki_Scraped_Table_2010,
+  Wiki_Scraped_Table_2012,
+  Wiki_Scraped_Table_2013,
+  Wiki_Scraped_Table_2014,
+  Wiki_Scraped_Table_2015,
+  Wiki_Scraped_Table_2016,
+  Wiki_Scraped_Table_2017
+) 
+
+Wiki_Scraped_Tables$Date <- with(Wiki_Scraped_Tables, sprintf("%s-%02s", Year, Date))
+Wiki_Scraped_Tables$Date <- ymd(Wiki_Scraped_Tables$Date)
+Wiki_Scraped_Tables$Year <- as.integer(str_sub(as.character(
+  Wiki_Scraped_Tables$Date),1,4))
+
+Weeks_Per_Author <- Wiki_Scraped_Tables %>%
+  group_by(Author, Year) %>%
+  summarise(
+    count = n()
+  ) %>%
+  arrange(desc(count))
+
+Authors <- factor(Weeks_Per_Author[1:10,]$Author)
+
+
+ggplot(data = Weeks_Per_Author[1:10,], mapping = aes(Year, count)) + 
+  geom_col(aes(Year, count,fill = Authors),position = "dodge")
+  ylab("Weeks") 
+```
+
+##   NYT Graph Analysis
+```{r NYT Book Analysis, echo=FALSE, warning=FALSE}
+Wiki_Scraped_Tables <- as_tibble(Wiki_Scraped_Tables[,c(3,2,1)])
+BestSellers_ByAuthor <- Wiki_Scraped_Tables %>%
+  group_by(Author) %>%
+  summarise(
+    count = n()
+  ) %>%
+  arrange(desc(count)) %>%
+filter(count > 22) 
+
+ggplot(data = BestSellers_ByAuthor,aes(Author,count)) + 
+  geom_point(aes(x = factor(Author, levels = c('Tom Clancy','J. K. Rowling','Tim LaHaye and Jerry B. Jenkins','Danielle Steel','Nora Roberts','Stephen King','Paula Hawkins','Janet Evanovich','E. L. James','Mary Higgins Clark','Patricia Cornwell','James Patterson','Dan Brown','John Grisham')), 
+                 y = count,size = count, color = Author),show.legend = FALSE) +
+  theme_bw() + 
+  theme(axis.text.x=element_text(angle=45,hjust=1),plot.title = element_text(angle=0,hjust=0.45)) + 
+  labs(x = "Authors", y = "Weeks with NYT Best Seller") +
+  ggtitle("1996 - 2017")
+```
+
+##  NYT Graph Analysis
+```{r NYT Best Books Table, echo=FALSE, warning=FALSE}
+BestSellers_ByBook <- Wiki_Scraped_Tables %>%
+  group_by(Book, Author) %>%
+  summarise(
+    Weeks = n()
+  ) %>%
+  arrange(desc(Weeks)) %>%
+  filter(Weeks > 11)
+names(BestSellers_ByBook) <- c("Book","Author","Weeks")
+kable(BestSellers_ByBook, caption = "Most Frequent Best Seller Books 1996 - 2017")
+```
+
+##  NYT Graph Analysis
+```{r NYT Best Books, echo=FALSE, warning=FALSE  }
+ggplot(data = BestSellers_ByBook,aes(Author,count)) + 
+  geom_point(aes(x = factor(Author, levels = c('J. K. Rowling','Khaled Hosseini','Charles Frazier','Paula Hawkins','E. L. James','Dan Brown')), y = Weeks,
+                 size = Weeks, color = Author),show.legend = FALSE) +
+  theme_bw() + 
+  theme(axis.text.x=element_text(angle=45,hjust=1),plot.title = element_text(angle=0,hjust=0.45)) + 
+  labs(x = "Authors", y = "Weeks with NYT Best Seller") +
+  ggtitle("1996 - 2014")
+```
+
+## Access Usable Amazon Review Data  
+Scrape the initial Amazon Reviews for the most frequent Titles:
+
+- Tidy the data
+  
+- Conduct sentiment analysis
+
+See if the sentiment complements the Best Seller Status
+
+## Amazon Analysis
+```{r Amazon,echo=FALSE, warning=FALSE, }
+Review_scraper <- function(x){
+  url <- read_html(x)
+  url %>%
+    html_nodes(".review-text") %>%
+    html_text() %>%
+    as_tibble()}
+
+DaVinciCode <- "https://www.amazon.com/Vinci-Code-Dan-Brown/product-reviews/0307474275/ref=cm_cr_getr_d_paging_btm_494?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=494"
+DaVinciCode2 <-"https://www.amazon.com/Vinci-Code-Dan-Brown/product-reviews/0307474275/ref=cm_cr_arp_d_paging_btm_493?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=493"
+FiftyShades <- "https://www.amazon.com/Fifty-Shades-Grey-Book-Trilogy/product-reviews/0345803485/ref=cm_cr_getr_d_paging_btm_8507?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=8507"
+FiftyShades2 <- "https://www.amazon.com/Fifty-Shades-Grey-Book-Trilogy/product-reviews/0345803485/ref=cm_cr_arp_d_paging_btm_8506?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=8506"
+GirlOnTrain <- "https://www.amazon.com/Girl-Train-Paula-Hawkins/product-reviews/1594633665/ref=cm_cr_getr_d_paging_btm_5825?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=5825"
+GirlOnTrain2 <- "https://www.amazon.com/Girl-Train-Paula-Hawkins/product-reviews/1594633665/ref=cm_cr_getr_d_paging_btm_5823?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=5823"
+ColdMountain <- "https://www.amazon.com/Cold-Mountain-Novel-Charles-Frazier-ebook/product-reviews/B00BAH8N42/ref=cm_cr_getr_d_paging_btm_100?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=100"
+ColdMountain2 <- "https://www.amazon.com/Cold-Mountain-Novel-Charles-Frazier-ebook/product-reviews/B00BAH8N42/ref=cm_cr_arp_d_paging_btm_99?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=99"
+ThousandSuns <- "https://www.amazon.com/Thousand-Splendid-Suns-Khaled-Hosseini/product-reviews/159448385X/ref=cm_cr_arp_d_paging_btm_458?ie=UTF8&reviewerType=all_reviews&pageNumber=458"
+ThousandSuns2 <- "https://www.amazon.com/Thousand-Splendid-Suns-Khaled-Hosseini/product-reviews/159448385X/ref=cm_cr_getr_d_paging_btm_456?ie=UTF8&reviewerType=all_reviews&pageNumber=456&sortBy=recent"
+ChamberSecrets <- "https://www.amazon.com/Harry-Potter-Chamber-Secrets-Rowling/product-reviews/0439064872/ref=cm_cr_getr_d_paging_btm_601?ie=UTF8&reviewerType=all_reviews&pageNumber=601&sortBy=recent"
+ChamberSecrets2 <- "https://www.amazon.com/Harry-Potter-Chamber-Secrets-Rowling/product-reviews/0439064872/ref=cm_cr_arp_d_paging_btm_599?ie=UTF8&reviewerType=all_reviews&pageNumber=599&sortBy=recent"
+
+
+rev_DaVinciCode <- rbind(Review_scraper(DaVinciCode), Review_scraper(DaVinciCode2))
+rev_DaVinciCode$Book <- as.character(BestSellers_ByBook[1,1])
+rev_DaVinciCode$Author <-  as.character(BestSellers_ByBook[1,2])
+rev_DaVinciCode$Weeks <-  as.character(BestSellers_ByBook[1,3])
+
+rev_FiftyShades <- rbind(Review_scraper(FiftyShades), Review_scraper(FiftyShades2))
+rev_FiftyShades$Book <- as.character(BestSellers_ByBook[2,1])
+rev_FiftyShades$Author <-  as.character(BestSellers_ByBook[2,2])
+rev_FiftyShades$Weeks <-  as.character(BestSellers_ByBook[2,3])
+
+rev_GirlOnTrain <- rbind(Review_scraper(GirlOnTrain),Review_scraper(GirlOnTrain2))
+rev_GirlOnTrain$Book <- as.character(BestSellers_ByBook[3,1])
+rev_GirlOnTrain$Author <- as.character(BestSellers_ByBook[3,2])
+rev_GirlOnTrain$Weeks <- as.character(BestSellers_ByBook[3,3])
+
+rev_ColdMountain <- rbind(Review_scraper(ColdMountain), Review_scraper(ColdMountain2))
+rev_ColdMountain$Book <- as.character(BestSellers_ByBook[4,1])
+rev_ColdMountain$Author <-  as.character(BestSellers_ByBook[4,2])
+rev_ColdMountain$Weeks <-  as.character(BestSellers_ByBook[4,3])
+
+rev_ThousandSuns <- rbind(Review_scraper(ThousandSuns), Review_scraper(ThousandSuns2))
+rev_ThousandSuns$Book <- as.character(BestSellers_ByBook[5,1])
+rev_ThousandSuns$Author <-  as.character(BestSellers_ByBook[5,2])
+rev_ThousandSuns$Weeks <-  as.character(BestSellers_ByBook[5,3])
+
+
+rev_ChamberSecrets <- rbind(Review_scraper(ChamberSecrets), Review_scraper(ChamberSecrets2))
+rev_ChamberSecrets$Book <- as.character(BestSellers_ByBook[6,1])
+rev_ChamberSecrets$Author <-  as.character(BestSellers_ByBook[6,2])
+rev_ChamberSecrets$Weeks <-  as.character(BestSellers_ByBook[6,3])
+
+Reviews_of_Top6 <- rbind(rev_DaVinciCode, rev_FiftyShades, rev_GirlOnTrain, rev_ColdMountain, rev_ThousandSuns, rev_ChamberSecrets)
+names(Reviews_of_Top6) <- c("Review","Book", "Author", "Weeks")
+
+data("stop_words")
+Reviews_of_Top6_words <-  suppressMessages(Reviews_of_Top6 %>%
+  unnest_tokens(word, Review) %>%
+  anti_join(stop_words)) 
+
+Reviews_of_Top6_words <- suppressMessages( Reviews_of_Top6_words %>%
+  group_by(Author, Book, word) %>%
+  summarise(
+    count = n()
+  ) )
+  
+Reviews_of_Top6_Sentiment_Bing <-  suppressMessages(Reviews_of_Top6_words %>%
+  group_by(Book,word) %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(Book, index = row_number(), sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative) %>%
+  group_by(Book) %>%
+  summarise(
+    sentiment = sum(sentiment)) %>%
+  mutate(method = "Bing"))
+
+Reviews_of_Top6_Sentiment_afinn <-  suppressMessages( Reviews_of_Top6_words %>%
+  group_by(Book) %>%
+  inner_join(get_sentiments("afinn")) %>%
+  summarise(sentiment = sum(score)) %>%
+  mutate(method = "AFINN"))
+  
+
+Reviews_of_Top6_Sentiment_NRC <-   suppressMessages(Reviews_of_Top6_words %>%
+  group_by(Book) %>%
+ inner_join(get_sentiments("nrc") %>% 
+            filter(sentiment %in% c("positive", 
+                                    "negative"))) %>%
+  mutate(method = "NRC") %>%
+  count(method, index = row_number(), sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)  %>%
+  group_by(Book) %>%
+  summarise(
+    sentiment = sum(sentiment)))
+Reviews_of_Top6_Sentiment_NRC$method <- "NRC"
+
+Reviews_of_Top6_Sentiment <- rbind(Reviews_of_Top6_Sentiment_Bing,Reviews_of_Top6_Sentiment_afinn,Reviews_of_Top6_Sentiment_NRC)
+Reviews_of_Top6_Sentiment <- Reviews_of_Top6_Sentiment %>%
+  group_by(Book,method)
+
+ggplot(Reviews_of_Top6_Sentiment, aes(Book, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y") +
+  coord_flip() 
+```
+
+# Conclusions
+
+## What do we think?
+
+- This theory has not been proven
+- Positive sentiment does not seem to be related to Best Seller reviews
+
+What else could we do?
+
+- Compare review sentiment to average Amazon Start score rating
+- Scrape more reviews, analyze the sentiment over time
+- Understand book reviews are subjective and difficult to analyze
+  - "This book was terrifying" could be considered a positive review for a thriller
