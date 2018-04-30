@@ -1,0 +1,12 @@
+\frametitle{NYT Graph Analysis}
+
+\includegraphics{Wright_Final_Presentation_597_files/figure-beamer/NYT Author Analysis-1.pdf}
+
+\begin{verbatim}
+## $y
+## [1] "Weeks"
+##
+## attr(,"class")
+## [1] "labels"
+\end{verbatim}
+
