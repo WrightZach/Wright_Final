@@ -2,9 +2,7 @@
 title: "A Shallow Dive into the Deep Pool of Amazon Review Data"
 author: "Zach Wright"
 date: "4/30/2018"
-output:
-  beamer_presentation: default
-  ioslides_presentation: default
+output: ioslides_presentation
 ---
 
 ```{r setup, include=FALSE}
@@ -219,7 +217,10 @@ BestSellers_ByAuthor <- Wiki_Scraped_Tables %>%
   summarise(
     count = n()
   ) %>%
-  arrange(desc(count)) %>%
+  arrange(desc(count))
+write.csv(BestSellers_ByAuthor,"NYT_BestSellersByBook")
+
+BestSellers_ByAuthor <- BestSellers_ByAuthor %>%
 filter(count > 22) 
 
 ggplot(data = BestSellers_ByAuthor,aes(Author,count)) + 
@@ -238,7 +239,11 @@ BestSellers_ByBook <- Wiki_Scraped_Tables %>%
   summarise(
     Weeks = n()
   ) %>%
-  arrange(desc(Weeks)) %>%
+  arrange(desc(Weeks))
+
+write.csv(BestSellers_ByBook, "NYT_BestSellersByBook")
+
+BestSellers_ByBook <- BestSellers_ByBook %>%
   filter(Weeks > 11)
 names(BestSellers_ByBook) <- c("Book","Author","Weeks")
 kable(BestSellers_ByBook, caption = "Most Frequent Best Seller Books 1996 - 2017")
